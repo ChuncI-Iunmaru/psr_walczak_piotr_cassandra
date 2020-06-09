@@ -24,6 +24,7 @@ public class AppMain {
                         matchTableManager.deleteMatch();
                         break;
                     case 'a':
+                        matchTableManager.updateMatch();
                         break;
                     case 'i':
                         matchTableManager.getById();

@@ -10,6 +10,7 @@ import com.datastax.oss.driver.api.querybuilder.schema.CreateTableWithOptions;
 import com.datastax.oss.driver.api.querybuilder.schema.CreateType;
 import com.datastax.oss.driver.api.querybuilder.schema.Drop;
 import com.datastax.oss.driver.api.querybuilder.select.Select;
+import com.datastax.oss.driver.api.querybuilder.update.Update;
 import javafx.util.Pair;
 
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ public class MatchTableManager extends SimpleManager {
                 .withColumn("team2", DataTypes.TEXT)
                 .withColumn("score1", DataTypes.INT)
                 .withColumn("score2", DataTypes.INT)
+                .withColumn("time", DataTypes.INT)
                 .withColumn("goals", DataTypes.frozenListOf(QueryBuilder.udt("goal")));
         CreateTableWithOptions createSecondaryTable = SchemaBuilder.createTable("team_scores").ifNotExists()
                 .withPartitionKey("team", DataTypes.TEXT)
@@ -57,7 +59,7 @@ public class MatchTableManager extends SimpleManager {
         System.out.println("Podaj nazwę drugiej drużyny:");
         String secondTeam = ConsoleUtils.getText(1);
         System.out.println("Podaj czas trwania meczu:");
-        int matchTime = ConsoleUtils.getNumber(1, -1);
+        int matchTime = ConsoleUtils.getNumber(90, -1);
         Pair<Integer, Integer> result = ConsoleUtils.getScores(firstTeam, secondTeam);
         List<Goal> goals = Stream.concat(
                 ConsoleUtils.getGoalsForTeam(result.getKey(), matchTime, firstTeam).stream(),
@@ -73,25 +75,19 @@ public class MatchTableManager extends SimpleManager {
                 .value("team2", QueryBuilder.raw(String.format("'%s'", secondTeam)))
                 .value("score1", QueryBuilder.raw(result.getKey().toString()))
                 .value("score2", QueryBuilder.raw(result.getValue().toString()))
+                .value("time", QueryBuilder.literal(matchTime))
                 .value("goals", QueryBuilder.raw(goals.toString()));
 
-        Insert insertFirstTeamIntoSecondary = QueryBuilder.insertInto("liga", "team_scores")
-                .value("team", QueryBuilder.raw(String.format("'%s'", firstTeam)))
-                .value("match_id", QueryBuilder.raw(Integer.toString(key)))
-                .value("score", QueryBuilder.raw(result.getKey().toString()));
-        Insert insertSecondTeamIntoSecondary = QueryBuilder.insertInto("liga", "team_scores")
-                .value("team", QueryBuilder.raw(String.format("'%s'", secondTeam)))
-                .value("match_id", QueryBuilder.raw(Integer.toString(key)))
-                .value("score", QueryBuilder.raw(result.getValue().toString()));
+//        Insert insertFirstTeamIntoSecondary = QueryBuilder.insertInto("liga", "team_scores")
+//                .value("team", QueryBuilder.raw(String.format("'%s'", firstTeam)))
+//                .value("match_id", QueryBuilder.raw(Integer.toString(key)))
+//                .value("score", QueryBuilder.raw(result.getKey().toString()));
 
+        insertIntoSecondary(firstTeam, key, result.getKey());
+        insertIntoSecondary(secondTeam, key, result.getValue());
         //For debug
         System.out.println(insert);
-        System.out.println(insertFirstTeamIntoSecondary);
-        System.out.println(insertSecondTeamIntoSecondary);
-
         session.execute(insert.build());
-        session.execute(insertFirstTeamIntoSecondary.build());
-        session.execute(insertSecondTeamIntoSecondary.build());
     }
 
     public void getAll() {
@@ -108,26 +104,7 @@ public class MatchTableManager extends SimpleManager {
     }
 
     public void getByQuery() {
-        System.out.println("Podaj nazwę drużyny: ");
-        String team = ConsoleUtils.getText(1);
-        Select selectMatchIDs = QueryBuilder.selectFrom("team_scores").column("match_id").whereColumn("team").isEqualTo(QueryBuilder.literal(team));
-        SimpleStatement statement = selectMatchIDs.build();
-        ResultSet resultSet = session.execute(statement);
-        if (resultSet.getAvailableWithoutFetching() == 0) {
-            System.out.println("Drużyna nie rozegrała żadnych meczy w lidze!");
-            return;
-        }
-        List<Integer> ids = new ArrayList<>();
-        for (Row row: resultSet) {
-            ids.add(row.getInt("match_id"));
-        }
-        Select selectMatches = QueryBuilder.selectFrom("match").all().whereColumn("id").in(QueryBuilder.bindMarker());
-        PreparedStatement preparedStatement = session.prepare(selectMatches.toString());
-        BoundStatement boundStatement = preparedStatement.bind(ids);
-        resultSet = session.execute(boundStatement);
-        for (Row row: resultSet) {
-            ConsoleUtils.printRowAsMatch(row);
-        }
+        System.out.println("Nie zaimplementowane");
     }
 
     public void dropTables() {
@@ -138,37 +115,63 @@ public class MatchTableManager extends SimpleManager {
     }
 
     public void deleteMatch() {
-        System.out.println("Podaj id meczu do usunięcia");
+        System.out.println("Podaj id meczu do usunięcia:");
         int id = ConsoleUtils.getNumber(-1, 0, -1);
-        Select select = QueryBuilder.selectFrom("match").all()
-                .whereColumn("id").isEqualTo(QueryBuilder.literal(id));
-        ResultSet resultSet = session.execute(select.build());
-        if (resultSet.getAvailableWithoutFetching() == 0){
-            System.out.println("Nie znaleziono meczu o takim id.");
-        }
-        Row matchToDelete = resultSet.one();
+        Row matchToDelete = getOneMatchById(id);
+        if (matchToDelete == null) return;
         Delete deleteFromMain = QueryBuilder.deleteFrom("match").whereColumn("id").isEqualTo(QueryBuilder.literal(id));
-        Delete deleteFirstTeam = QueryBuilder.deleteFrom("team_scores")
-                .whereColumn("team").isEqualTo(QueryBuilder.literal(matchToDelete.getString("team1")))
-                .whereColumn("match_id").isEqualTo(QueryBuilder.literal(id));
-        Delete deleteSecondTeam = QueryBuilder.deleteFrom("team_scores")
-                .whereColumn("team").isEqualTo(QueryBuilder.literal(matchToDelete.getString("team2")))
-                .whereColumn("match_id").isEqualTo(QueryBuilder.literal(id));
+//        Delete deleteFirstTeam = QueryBuilder.deleteFrom("team_scores")
+//                .whereColumn("team").isEqualTo(QueryBuilder.literal(matchToDelete.getString("team1")))
+//                .whereColumn("match_id").isEqualTo(QueryBuilder.literal(id));
+
+        deleteFromSecondary(matchToDelete.getString("team1"), id);
+        deleteFromSecondary(matchToDelete.getString("team2"), id);
+
         session.execute(deleteFromMain.build());
-        session.execute(deleteFirstTeam.build());
-        session.execute(deleteSecondTeam.build());
+
     }
 
-    private void buildAndPrintSelectQuery(Select query){
-        SimpleStatement statement = query.build();
-        ResultSet resultSet = session.execute(statement);
-        if (resultSet.getAvailableWithoutFetching() == 0) {
-            System.out.println("Nie znaleziono danych!");
-            return;
-        }
-        for (Row row : resultSet) {
-            ConsoleUtils.printRowAsMatch(row);
-        }
+    public void updateMatch() {
+        System.out.println("Podaj id meczu do aktualizacji:");
+        int id = ConsoleUtils.getNumber(-1, 0, -1);
+        Row matchToUpdate = getOneMatchById(id);
+        if (matchToUpdate == null) return;
+        String date = ConsoleUtils.getFormattedDate(matchToUpdate.getString("date"));
+        System.out.println("Podaj nazwę obiektu. Obecna wartość: "+matchToUpdate.getString("stadium")+". Pozostaw puste by nie zmieniać.");
+        String stadium = ConsoleUtils.getText(0);
+        if (stadium.isEmpty()) stadium = matchToUpdate.getString("stadium");
+        System.out.println("Podaj nazwę pierwszej drużyny. Obecna wartość: "+matchToUpdate.getString("team1")+". Pozostaw puste by nie zmieniać.");
+        String firstTeam = ConsoleUtils.getText(0);
+        if (firstTeam.isEmpty()) firstTeam = matchToUpdate.getString("team2");
+        System.out.println("Podaj nazwę drugiej drużyny. Obecna wartość: "+matchToUpdate.getString("team2")+". Pozostaw puste by nie zmieniać.");
+        String secondTeam = ConsoleUtils.getText(0);
+        if (secondTeam.isEmpty()) secondTeam = matchToUpdate.getString("team2");
+        System.out.println("Podaj czas trwania meczu. Obecna wartość: "+matchToUpdate.getInt("time")+". Pozostaw puste by nie zmieniać.");
+        int matchTime = ConsoleUtils.getNumber(matchToUpdate.getInt("time"), 90, -1);
+        System.out.println("Po wprowadzeniu zmian podaj nowy wynik i gole:");
+        Pair<Integer, Integer> result = ConsoleUtils.getScores(firstTeam, secondTeam);
+        List<Goal> goals = Stream.concat(
+                ConsoleUtils.getGoalsForTeam(result.getKey(), matchTime, firstTeam).stream(),
+                ConsoleUtils.getGoalsForTeam(result.getValue(), matchTime, secondTeam).stream()
+        ).collect(Collectors.toList());
+
+        Update update = QueryBuilder.update("match")
+                .setColumn("date", QueryBuilder.literal(date))
+                .setColumn("stadium", QueryBuilder.literal(stadium))
+                .setColumn("team1", QueryBuilder.literal(firstTeam))
+                .setColumn("team2", QueryBuilder.literal(secondTeam))
+                .setColumn("score1", QueryBuilder.literal(result.getKey()))
+                .setColumn("score2", QueryBuilder.literal(result.getValue()))
+                .setColumn("time", QueryBuilder.literal(matchTime))
+                .setColumn("goals", QueryBuilder.raw(goals.toString()))
+                .whereColumn("id").isEqualTo(QueryBuilder.literal(id));
+
+        deleteFromSecondary(matchToUpdate.getString("team1"), id);
+        deleteFromSecondary(matchToUpdate.getString("team2"), id);
+        insertIntoSecondary(firstTeam, id, result.getKey());
+        insertIntoSecondary(secondTeam, id, result.getValue());
+
+        session.execute(update.build());
     }
 
     public void calculateTeamStats() {
@@ -187,5 +190,43 @@ public class MatchTableManager extends SimpleManager {
             sum_goals+=row.getInt("score");
         }
         System.out.println("Drużyna rozegrała "+matches+" meczy i zdobyła "+sum_goals+" gol(i)");
+    }
+
+    private void buildAndPrintSelectQuery(Select query){
+        SimpleStatement statement = query.build();
+        ResultSet resultSet = session.execute(statement);
+        if (resultSet.getAvailableWithoutFetching() == 0) {
+            System.out.println("Nie znaleziono danych!");
+            return;
+        }
+        for (Row row : resultSet) {
+            ConsoleUtils.printRowAsMatch(row);
+        }
+    }
+
+    private Row getOneMatchById(int id) {
+        Select select = QueryBuilder.selectFrom("match").all()
+                .whereColumn("id").isEqualTo(QueryBuilder.literal(id));
+        ResultSet resultSet = session.execute(select.build());
+        if (resultSet.getAvailableWithoutFetching() == 0){
+            System.out.println("Nie znaleziono meczu o takim id.");
+            return null;
+        }
+        return resultSet.one();
+    }
+
+    private void insertIntoSecondary(String team, int match_id, int score) {
+        Insert insert = QueryBuilder.insertInto("liga", "team_scores")
+                .value("team", QueryBuilder.raw(String.format("'%s'", team)))
+                .value("match_id", QueryBuilder.raw(Integer.toString(match_id)))
+                .value("score", QueryBuilder.raw(Integer.toString(score)));
+        session.execute(insert.build());
+    }
+
+    private void deleteFromSecondary(String team, int match_id) {
+        Delete delete = QueryBuilder.deleteFrom("team_scores")
+                .whereColumn("team").isEqualTo(QueryBuilder.literal(team))
+                .whereColumn("match_id").isEqualTo(QueryBuilder.literal(match_id));
+        session.execute(delete.build());
     }
 }
