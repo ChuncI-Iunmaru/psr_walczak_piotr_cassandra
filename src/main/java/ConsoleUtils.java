@@ -11,6 +11,26 @@ public class ConsoleUtils {
     private static Scanner scanner = new Scanner(System.in);
     private static DateTimeFormatter format = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
+    static char getMenuOption() {
+        System.out.println("\n1.[d]odaj mecz" +
+                "\n2.[u]suń mecz" +
+                "\n3.[a]ktualizuj mecz" +
+                "\n4.pobierz po [i]dentyfikatorze" +
+                "\n5.pobierz [w]szystkie" +
+                "\n6.[p]obierz po dacie i/lub obiekcie" +
+                "\n7.[o]blicz statystki dla druzyny" +
+                "\n8.[z]akoncz");
+        while (true) {
+            try {
+                System.out.print("Podaj operację: ");
+                return scanner.nextLine().toLowerCase().charAt(0);
+            } catch (StringIndexOutOfBoundsException e) {
+                scanner.nextLine();
+                System.out.println("Podano nieprawidłową operację.");
+            }
+        }
+    }
+
     static String getFormattedDate(String setValue) {
         System.out.println("Podaj date meczu w formacie DD-MM-YYYY");
         if (!setValue.isEmpty())
@@ -88,10 +108,6 @@ public class ConsoleUtils {
         System.out.println("Wybierz drużynę: \n1."+firstTeam+"\n2."+secondTeam);
         int choice = getNumber(1,2);
         return choice == 1 ? firstTeam : secondTeam;
-    }
-
-    static void printGoal(Goal goal){
-
     }
 
     static List<Goal> getGoalsForTeam(int number, int matchTime, String team) {
