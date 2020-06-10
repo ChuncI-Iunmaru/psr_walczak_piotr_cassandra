@@ -65,7 +65,6 @@ public class MatchTableManager extends SimpleManager {
                 ConsoleUtils.getGoalsForTeam(result.getKey(), matchTime, firstTeam).stream(),
                 ConsoleUtils.getGoalsForTeam(result.getValue(), matchTime, secondTeam).stream()
         ).collect(Collectors.toList());
-        //System.out.println(goals.toString());
         int key = Math.abs(r.nextInt());
         Insert insert = QueryBuilder.insertInto("liga", "match")
                 .value("date", QueryBuilder.raw(String.format("'%s'", date)))
@@ -81,7 +80,7 @@ public class MatchTableManager extends SimpleManager {
         insertIntoSecondary(firstTeam, key, result.getKey());
         insertIntoSecondary(secondTeam, key, result.getValue());
         //For debug
-        System.out.println(insert);
+        //System.out.println(insert);
         session.execute(insert.build());
     }
 
@@ -99,7 +98,6 @@ public class MatchTableManager extends SimpleManager {
     }
 
     public void getByQuery() {
-        //System.out.println("Nie zaimplementowane");
         System.out.println("Pobieranie zapytaniem");
         System.out.println("Podaj nazwę drużyny: ");
         String team = ConsoleUtils.getText(1);
