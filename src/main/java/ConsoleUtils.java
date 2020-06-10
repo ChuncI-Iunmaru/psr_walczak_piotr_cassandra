@@ -17,7 +17,7 @@ public class ConsoleUtils {
                 "\n3.[a]ktualizuj mecz" +
                 "\n4.pobierz po [i]dentyfikatorze" +
                 "\n5.pobierz [w]szystkie" +
-                "\n6.[p]obierz po dacie i/lub obiekcie" +
+                "\n6.[p]obierz mecze drużyny" +
                 "\n7.[o]blicz statystki dla druzyny" +
                 "\n8.[z]akoncz");
         while (true) {

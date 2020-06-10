@@ -104,7 +104,26 @@ public class MatchTableManager extends SimpleManager {
     }
 
     public void getByQuery() {
-        System.out.println("Nie zaimplementowane");
+        //System.out.println("Nie zaimplementowane");
+        System.out.println("Podaj nazwę drużyny: ");
+        String team = ConsoleUtils.getText(1);
+        Select query = QueryBuilder.selectFrom("team_scores").all().whereColumn("team").isEqualTo(QueryBuilder.literal(team));
+        SimpleStatement statement = query.build();
+        ResultSet resultSet = session.execute(statement);
+        if (resultSet.getAvailableWithoutFetching() == 0) {
+            System.out.println("Drużyna nie rozegrała żadnych meczy w lidze!");
+            return;
+        }
+        List<Integer> ids = new ArrayList<>();
+        for (Row row: resultSet) {
+            ids.add(row.getInt("match_id"));
+        }
+        Select selectMatchesById = QueryBuilder.selectFrom("match").all().whereColumn("id").in(QueryBuilder.bindMarker());
+        PreparedStatement preparedStatement = session.prepare(selectMatchesById.build());
+        resultSet = session.execute(preparedStatement.bind(ids));
+        for (Row row: resultSet) {
+            ConsoleUtils.printRowAsMatch(row);
+        }
     }
 
     public void dropTables() {
@@ -128,7 +147,6 @@ public class MatchTableManager extends SimpleManager {
         deleteFromSecondary(matchToDelete.getString("team2"), id);
 
         session.execute(deleteFromMain.build());
-
     }
 
     public void updateMatch() {
@@ -142,7 +160,7 @@ public class MatchTableManager extends SimpleManager {
         if (stadium.isEmpty()) stadium = matchToUpdate.getString("stadium");
         System.out.println("Podaj nazwę pierwszej drużyny. Obecna wartość: "+matchToUpdate.getString("team1")+". Pozostaw puste by nie zmieniać.");
         String firstTeam = ConsoleUtils.getText(0);
-        if (firstTeam.isEmpty()) firstTeam = matchToUpdate.getString("team2");
+        if (firstTeam.isEmpty()) firstTeam = matchToUpdate.getString("team1");
         System.out.println("Podaj nazwę drugiej drużyny. Obecna wartość: "+matchToUpdate.getString("team2")+". Pozostaw puste by nie zmieniać.");
         String secondTeam = ConsoleUtils.getText(0);
         if (secondTeam.isEmpty()) secondTeam = matchToUpdate.getString("team2");
