@@ -78,11 +78,6 @@ public class MatchTableManager extends SimpleManager {
                 .value("time", QueryBuilder.literal(matchTime))
                 .value("goals", QueryBuilder.raw(goals.toString()));
 
-//        Insert insertFirstTeamIntoSecondary = QueryBuilder.insertInto("liga", "team_scores")
-//                .value("team", QueryBuilder.raw(String.format("'%s'", firstTeam)))
-//                .value("match_id", QueryBuilder.raw(Integer.toString(key)))
-//                .value("score", QueryBuilder.raw(result.getKey().toString()));
-
         insertIntoSecondary(firstTeam, key, result.getKey());
         insertIntoSecondary(secondTeam, key, result.getValue());
         //For debug
@@ -105,6 +100,7 @@ public class MatchTableManager extends SimpleManager {
 
     public void getByQuery() {
         //System.out.println("Nie zaimplementowane");
+        System.out.println("Pobieranie zapytaniem");
         System.out.println("Podaj nazwę drużyny: ");
         String team = ConsoleUtils.getText(1);
         Select query = QueryBuilder.selectFrom("team_scores").all().whereColumn("team").isEqualTo(QueryBuilder.literal(team));
@@ -139,9 +135,6 @@ public class MatchTableManager extends SimpleManager {
         Row matchToDelete = getOneMatchById(id);
         if (matchToDelete == null) return;
         Delete deleteFromMain = QueryBuilder.deleteFrom("match").whereColumn("id").isEqualTo(QueryBuilder.literal(id));
-//        Delete deleteFirstTeam = QueryBuilder.deleteFrom("team_scores")
-//                .whereColumn("team").isEqualTo(QueryBuilder.literal(matchToDelete.getString("team1")))
-//                .whereColumn("match_id").isEqualTo(QueryBuilder.literal(id));
 
         deleteFromSecondary(matchToDelete.getString("team1"), id);
         deleteFromSecondary(matchToDelete.getString("team2"), id);
@@ -193,6 +186,7 @@ public class MatchTableManager extends SimpleManager {
     }
 
     public void calculateTeamStats() {
+        System.out.println("Przetwarzanie danych");
         System.out.println("Podaj nazwę drużyny: ");
         String team = ConsoleUtils.getText(1);
         Select query = QueryBuilder.selectFrom("team_scores").all().whereColumn("team").isEqualTo(QueryBuilder.literal(team));
@@ -202,12 +196,21 @@ public class MatchTableManager extends SimpleManager {
             System.out.println("Drużyna nie rozegrała żadnych meczy w lidze!");
             return;
         }
-        int matches=0, sum_goals=0, lowest=-1, highest=-1;
+        int matches=0;
+        double sum_goals=0;
+        int lowest=999999;
+        int highest=-1;
         for (Row row : resultSet) {
             matches+=1;
-            sum_goals+=row.getInt("score");
+            int score = row.getInt("score");
+            sum_goals+=score;
+            if (score < lowest) lowest = score;
+            if (score > highest) highest = score;
         }
-        System.out.println("Drużyna rozegrała "+matches+" meczy i zdobyła "+sum_goals+" gol(i)");
+        System.out.println("Drużyna rozegrała w lidze "+matches+" meczy i zdobyła "+sum_goals+" gol(i)");
+        System.out.println("Najwięcej goli w meczu: "+highest);
+        System.out.println("Najmniej goli w meczu: "+lowest);
+        System.out.println("średnio goli w meczu: "+sum_goals/matches);
     }
 
     private void buildAndPrintSelectQuery(Select query){
