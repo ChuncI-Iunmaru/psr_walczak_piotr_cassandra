@@ -120,7 +120,7 @@ public class ConsoleUtils {
         Pair<Integer, Integer> score = new Pair<>(row.getInt("score1"), row.getInt("score2"));
         System.out.format("%30s: - :%-30s\n", score.getKey(), score.getValue());
         if (score.getKey().equals(score.getValue())) {
-            System.out.format("%40s\n", "REMIS");
+            System.out.format("%35s\n", "REMIS");
         } else if (score.getKey() > score.getValue()) {
             System.out.format("%-40s\n", "Zwycięzca: " + row.getString("team1"));
         } else System.out.format("%75s\n", "Zwycięzca: " + row.getString("team2"));
